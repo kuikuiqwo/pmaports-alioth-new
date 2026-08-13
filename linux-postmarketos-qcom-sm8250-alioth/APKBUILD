@@ -37,6 +37,7 @@ _config="config-$_flavor.$arch"
 source="
 	$pkgname-$_tag.tar.gz::https://github.com/mainlining/linux/archive/nikroks/alioth/linux-$_tag.tar.gz
 	$_config
+	0001-alioth-limit-charge-voltage.patch
 "
 builddir="$srcdir/linux-nikroks-$_tag"
 
