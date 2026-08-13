@@ -1,0 +1,59 @@
+name: Auto update APKBUILD checksums
+
+on:
+  push:
+    branches:
+      - main # 如果你的默认分支是 master，请改成 master
+    paths:
+      - 'linux-postmarketos-qcom-sm8250-alioth/**'
+      - 'device-xiaomi-alioth/**'
+      - 'firmware-xiaomi-alioth/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-checksums:
+    runs-on: ubuntu-latest # 使用原生 Ubuntu，保证 git-auto-commit 完美运行
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update checksums in Alpine container
+        uses: addnab/docker-run-action@v3
+        with:
+          image: alpine:latest
+          # 将当前工作目录挂载到容器的 /workspace，并设置工作目录
+          options: -v ${{ github.workspace }}:/workspace -w /workspace
+          run: |
+            apk add --no-cache alpine-sdk bash git
+            
+            # 修复容器内操作挂载目录的 Git 安全警告
+            git config --global --add safe.directory /workspace
+            
+            adduser -D builder
+            mkdir -p /home/builder/distfiles
+            chown -R builder:builder /home/builder
+            
+            # 遍历需要更新 checksum 的目录
+            for dir in linux-postmarketos-qcom-sm8250-alioth device-xiaomi-alioth firmware-xiaomi-alioth; do
+              if [ -f "$dir/APKBUILD" ]; then
+                echo "👉 Updating checksum for $dir"
+                chown -R builder "$dir"
+                su builder -c "cd '$dir' && SRCDEST=/home/builder/distfiles abuild checksum"
+              fi
+            done
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-update APKBUILD checksums [skip ci]"
+          branch: main # 如果上面改了 master，这里也要改
+          file_pattern: |
+            linux-postmarketos-qcom-sm8250-alioth/APKBUILD
+            device-xiaomi-alioth/APKBUILD
+            firmware-xiaomi-alioth/APKBUILD
